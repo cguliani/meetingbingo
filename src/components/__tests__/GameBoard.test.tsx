@@ -39,7 +39,10 @@ describe('GameBoard', () => {
 
     const freeSpaceButton = within(cells[12]).getByRole('button');
     expect(freeSpaceButton.getAttribute('aria-pressed')).toBe('true');
-    expect((freeSpaceButton as HTMLButtonElement).disabled).toBe(true);
+    // Stays keyboard-focusable/reachable (aria-disabled, not the native
+    // `disabled` attribute, which would remove it from arrow-key/Tab nav).
+    expect(freeSpaceButton.getAttribute('aria-disabled')).toBe('true');
+    expect((freeSpaceButton as HTMLButtonElement).disabled).toBe(false);
     expect(freeSpaceButton.textContent).toContain('FREE');
   });
 

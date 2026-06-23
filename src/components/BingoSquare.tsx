@@ -19,7 +19,7 @@ export const BingoSquare = forwardRef<HTMLButtonElement, Props>(function BingoSq
       ref={ref}
       type="button"
       onClick={onClick}
-      disabled={isFreeSpace}
+      aria-disabled={isFreeSpace || undefined}
       aria-pressed={isFilled}
       aria-label={
         isFreeSpace
