@@ -1,7 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { GameProvider } from '../../context/GameContext';
 import App from '../../App';
+
+// jsdom's canvas has no real 2D rendering context, so canvas-confetti's
+// rAF-driven animation loop throws when it tries to draw — mock it out for
+// tests that can reach WinScreen.
+vi.mock('canvas-confetti', () => ({ default: vi.fn() }));
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -72,7 +77,7 @@ describe('GameBoard', () => {
     const cells = getGridCells();
     [0, 1, 2, 3, 4].forEach((i) => fireEvent.click(within(cells[i]).getByRole('button')));
 
-    expect(screen.getByText(/win screen coming soon/i)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /bingo!/i })).toBeTruthy();
   });
 
   it('"New Card" resets the fill state', () => {

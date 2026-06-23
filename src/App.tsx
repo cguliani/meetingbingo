@@ -2,6 +2,7 @@ import { useGameContext } from './context/GameContext';
 import { LandingPage } from './components/LandingPage';
 import { CategorySelect } from './components/CategorySelect';
 import { GameBoard } from './components/GameBoard';
+import { WinScreen } from './components/WinScreen';
 
 export default function App() {
   const { state } = useGameContext();
@@ -14,7 +15,6 @@ export default function App() {
     case 'playing':
       return <GameBoard />;
     case 'won':
-      // WinScreen lands in a later step.
-      return <div className="p-8 text-center text-gray-500">Win screen coming soon…</div>;
+      return <WinScreen />;
   }
 }
