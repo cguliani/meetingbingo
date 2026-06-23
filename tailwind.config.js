@@ -17,6 +17,10 @@ export default {
           '50%': { transform: 'scale(1.1)' },
           '100%': { transform: 'scale(1)', opacity: '1' },
         },
+        confetti: {
+          '0%': { transform: 'translateY(0) rotate(0deg)', opacity: '1' },
+          '100%': { transform: 'translateY(100px) rotate(360deg)', opacity: '0' },
+        },
       },
     },
   },
