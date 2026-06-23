@@ -33,7 +33,9 @@ describe('CategorySelect', () => {
   it('selecting a category starts the game with a generated card', () => {
     renderAtCategorySelect();
     fireEvent.click(screen.getByRole('button', { name: new RegExp(CATEGORIES[0].name, 'i') }));
-    expect(screen.getByText(/game screen coming soon/i)).toBeTruthy();
+    // GameBoard renders the 5x5 grid (25 gridcells) once a card exists.
+    expect(screen.getByRole('grid', { name: /bingo card/i })).toBeTruthy();
+    expect(screen.getAllByRole('gridcell')).toHaveLength(25);
   });
 
   it('"Back" returns to the landing page', () => {
