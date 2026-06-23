@@ -2,9 +2,21 @@
 
 ## Review Summary
 
-Reviewed: 2026-06-23 | Reviewers: VP Product, VP Engineering, VP Design (via plan-review-skill)
+Reviewed: 2026-06-23 | Reviewers: VP Product, VP Engineering, VP Design (via plan-review-skill, 2 rounds)
 
-### Changes Applied
+### Changes Applied — Round 2
+
+| # | Change |
+|---|---------------------------------------------------------------|
+| 15 | Rewrote Step 0: remote is already confirmed (`https://github.com/cguliani/meetingbingo.git`, repointed from the original third-party fork per explicit user instruction) and pushed — normal commit/push is expected going forward, no more "don't push" hedge |
+| 16 | Expanded Unresolved Items to enumerate which PRD success metrics (Share Rate, Games Started, Return Visits, Auto-fill Accuracy) are unmeasurable without a backend, not just "Analytics" generically |
+| 17 | Added explicit Out-of-Scope bullet for UXR's "Join Game" / "Invite Others" / shareable game-link flow (Scenes 3, 5, 10) |
+| 18 | Specified `detectedWords` (last-5 list) lives in `GameState`/reducer, not a parallel local `useState` in `TranscriptPanel` |
+| 19 | Extended speech auto-restart guard to also clear on `onerror`, not just manual stop/unmount |
+| 20 | Added `aria-live="polite"` requirement for `TranscriptPanel` updates and toast notifications (screen-reader feedback) |
+| 21 | Carried manual/auto-fill visual distinction into WinScreen's winning-card display and the shareable text summary |
+
+### Changes Applied — Round 1
 
 | # | Change |
 |---|---------------------------------------------------------------|
@@ -25,7 +37,7 @@ Reviewed: 2026-06-23 | Reviewers: VP Product, VP Engineering, VP Design (via pla
 
 ### Unresolved Items
 
-- [ ] Analytics/instrumentation for PRD success metrics — deferred; no backend exists to receive events, and adding one is out of scope for this single-player, no-backend app. Revisit if/when a metrics backend is introduced.
+- [ ] Analytics/instrumentation for PRD success metrics — deferred; no backend exists to receive events, and adding one is out of scope for this single-player, no-backend app. This specifically leaves the following PRD §1.3/§11 success metrics unmeasurable as built: Share Rate (>30% of wins), Games Started, Return Visits, Auto-fill Accuracy. Revisit if/when a metrics backend is introduced.
 
 ---
 
@@ -80,7 +92,7 @@ MeetingBingo/
 
 ## Implementation Steps
 
-0. **Verify repo state before touching anything**: Run `git status` / `git remote -v` inside `MeetingBingo/` and confirm whether this folder is its own git repo (separate from the outer workspace repo) and, if so, what remote it points to. Do not commit or push until this is confirmed — committing here could target a remote that isn't yours. If it's an independent repo with an unrelated remote, treat it as local-only (no push) unless the user explicitly confirms otherwise.
+0. **Repo state (resolved)**: `MeetingBingo/` is its own git repo, separate from the outer workspace repo. Its `origin` remote was originally a third party's fork (`wrsmith108/MeetingBingo.git`); it has since been repointed to `https://github.com/cguliani/meetingbingo.git` per explicit user instruction and force-pushed. Normal commit/push to `origin main` is expected for the rest of this work — no further confirmation needed before pushing.
 
 1. **Scaffold**: `npm create vite@latest . -- --template react-ts` inside `MeetingBingo/` (reusing the existing dir, alongside the 3 doc files), then `npm install canvas-confetti`, `npm install -D tailwindcss postcss autoprefixer vitest @testing-library/react jsdom` + `npx tailwindcss init -p`. Configure `tailwind.config.js` content globs and the color/animation tokens from the architecture doc (§6.6, vite.config.ts, tailwind.config.js already specified verbatim).
 
@@ -88,26 +100,26 @@ MeetingBingo/
 
 3. **Core game logic** (`src/lib/`): Port `cardGenerator.ts` (Fisher-Yates shuffle, 5x5 grid with center free space), `bingoChecker.ts` (12 winning lines: 5 rows, 5 cols, 2 diagonals + `getClosestToWin` for "one away" UI hint), `wordDetector.ts` (word-boundary regex for single words, substring match for multi-word phrases, alias table for things like "CI/CD"). Add Vitest unit tests for each (`cardGenerator`: uniqueness/shuffle distribution, free space placement; `bingoChecker`: all 12 lines, edge cases around the free space; `wordDetector`: word-boundary false-positive guards, alias matching, short-acronym edge cases like "CI" inside "ci-cd" or "social"). These functions are pure and cheap to test — do not skip this.
 
-4. **Speech hook** (`src/hooks/useSpeechRecognition.ts`): wrap `window.SpeechRecognition`/`webkitSpeechRecognition`, `continuous: true`, `interimResults: true`. Auto-restart in `onend` only while a `isListeningRef` flag is still true (set false on manual stop or component unmount) — this guard prevents the restart-loop race condition where `onend` fires after a deliberate stop and immediately re-requests the mic. Expose `isSupported` for feature detection so the UI can fall back to manual-only mode, and surface a specific error/notice for browsers (e.g. Firefox) or non-HTTPS contexts where the API is unavailable or blocked, per PRD risk mitigation.
+4. **Speech hook** (`src/hooks/useSpeechRecognition.ts`): wrap `window.SpeechRecognition`/`webkitSpeechRecognition`, `continuous: true`, `interimResults: true`. Auto-restart in `onend` only while a `isListeningRef` flag is still true (set false on manual stop, component unmount, *or* recognition error via `onerror` — not just manual stop/unmount) — this guard prevents the restart-loop race condition where `onend` fires after a deliberate stop, an error (e.g. permission revoked mid-session), or unmount, and immediately re-requests the mic. Expose `isSupported` for feature detection so the UI can fall back to manual-only mode, and surface a specific error/notice for browsers (e.g. Firefox) or non-HTTPS contexts where the API is unavailable or blocked, per PRD risk mitigation.
 
-5. **Game state**: `useGame.ts` (the single source of truth via `useReducer`) + `GameContext.tsx` managing `GameState` (status/category/card/isListening/timestamps/winningLine). No component keeps parallel local `useState` for any value owned by `GameState` — read/derive from context only. On each transcript chunk: run `detectWordsWithAliases`, mark matched squares `isFilled + isAutoFilled`, dispatch through the reducer; `useBingoDetection.ts` watches the card via the reducer's state and calls `checkForBingo` (triggers win transition) and `getClosestToWin` (drives `CloseToWinHint`) — this hook must actually be invoked from `GameBoard`, not left unused. On manual square click toggle `isFilled` (skip free space). `useLocalStorage.ts` persists/restores in-progress game on every state change; this is a required part of this step, not optional polish — Step 5 is not done until refresh-restore works.
+5. **Game state**: `useGame.ts` (the single source of truth via `useReducer`) + `GameContext.tsx` managing `GameState` (status/category/card/isListening/timestamps/winningLine/`detectedWords: string[]` — the last-5 detected-words list shown in `TranscriptPanel` lives here too, not as a local `useState` in the component). No component keeps parallel local `useState` for any value owned by `GameState` — read/derive from context only. On each transcript chunk: run `detectWordsWithAliases`, mark matched squares `isFilled + isAutoFilled`, dispatch through the reducer; `useBingoDetection.ts` watches the card via the reducer's state and calls `checkForBingo` (triggers win transition) and `getClosestToWin` (drives `CloseToWinHint`) — this hook must actually be invoked from `GameBoard`, not left unused. On manual square click toggle `isFilled` (skip free space). `useLocalStorage.ts` persists/restores in-progress game on every state change; this is a required part of this step, not optional polish — Step 5 is not done until refresh-restore works.
 
 6. **Screens** (`App.tsx` drives a 4-state screen switch: landing → category → game → win, matching the architecture doc's `App.tsx`):
    - `LandingPage`: hero + "New Game" CTA + privacy note + "How it works".
    - `CategorySelect`: 3 category cards (Agile/Corporate/Tech) with word previews.
    - `MicPermissionModal`: shown the first time the user would start listening (not just mentioned once on the landing page) — explains what's heard, that audio never leaves the browser, and offers "Allow & Listen" or "Skip, I'll tap manually" per UXR Scene 5.
-   - `GameBoard` → `BingoCard`/`BingoSquare` (5x5 grid, free space styled distinctly; auto-filled squares get a pulse animation *and* a distinct fill color/icon from manually-filled squares, so state isn't color-only), `TranscriptPanel` (listening indicator, last-100-char transcript, last 5 detected words), `GameControls` (New Card / Start-Stop Listening), `CloseToWinHint` (surfaces `getClosestToWin` output, e.g. "1 away — needs 'sprint'").
-   - `WinScreen`: `canvas-confetti` burst (skips/reduces animation when `prefers-reduced-motion` is set), winning line highlighted, stats (time to bingo, winning word, squares filled, category), Share button (Clipboard API text summary + Web Share API on mobile, per `shareUtils.ts`), Play Again / Home.
+   - `GameBoard` → `BingoCard`/`BingoSquare` (5x5 grid, free space styled distinctly; auto-filled squares get a pulse animation *and* a distinct fill color/icon from manually-filled squares, so state isn't color-only), `TranscriptPanel` (listening indicator, last-100-char transcript, last 5 detected words from `GameState.detectedWords`), `GameControls` (New Card / Start-Stop Listening), `CloseToWinHint` (surfaces `getClosestToWin` output, e.g. "1 away — needs 'sprint'").
+   - `WinScreen`: `canvas-confetti` burst (skips/reduces animation when `prefers-reduced-motion` is set), winning line highlighted, stats (time to bingo, winning word, squares filled, category), the winning card's manual-vs-auto-fill distinction carried over from gameplay (not reset to a single "filled" style), Share button (Clipboard API text summary + Web Share API on mobile, per `shareUtils.ts` — the share text/markers also distinguish auto- vs. manually-filled squares, per UXR Scene 9), Play Again / Home.
 
 7. **Shared UI primitives** (`components/ui/`): `Button`, `Card`, `Toast`/`ToastQueue` (queues multiple "✨ word detected" notifications so a multi-word utterance doesn't drop or overwrite toasts — show up to N stacked, auto-dismiss oldest first), plus `lib/utils.ts`'s `cn()` helper for conditional Tailwind classes (used throughout `BingoSquare`).
 
-8. **Accessibility**: `BingoCard` grid uses `role="grid"`/`role="row"`/`role="gridcell"` (or an equivalent ARIA pattern) with each `BingoSquare` as a real `<button>` carrying `aria-pressed` for filled state; full keyboard navigation (Tab/Arrow keys + Enter/Space to toggle); confetti and pulse/auto-fill animations respect `prefers-reduced-motion`; filled/auto-filled/free-space states are distinguishable without relying on color alone (icon, border style, or pattern).
+8. **Accessibility**: `BingoCard` grid uses `role="grid"`/`role="row"`/`role="gridcell"` (or an equivalent ARIA pattern) with each `BingoSquare` as a real `<button>` carrying `aria-pressed` for filled state; full keyboard navigation (Tab/Arrow keys + Enter/Space to toggle); confetti and pulse/auto-fill animations respect `prefers-reduced-motion`; filled/auto-filled/free-space states are distinguishable without relying on color alone (icon, border style, or pattern); `TranscriptPanel`'s transcript/detected-word updates and toast notifications use `aria-live="polite"` (or `role="status"`) so screen-reader users get non-visual feedback when a word is auto-detected.
 
 9. **Responsiveness**: Build the 5x5 grid and screens mobile-first per PRD §2.1 from the start (not as a final pass) — verify at common breakpoints (≤375px, 768px, desktop) as part of building `GameBoard`/`BingoCard`, not deferred to a later polish step.
 
 ## Out of Scope (per PRD §2.2, explicitly not building)
 
-Accounts/auth, multiplayer sync, custom word lists, backend/DB, sound effects, leaderboards, calendar integration, analytics/event instrumentation (no backend to receive events), dark theme (UXR mentions it as a "nice to have"; this build ships light theme only).
+Accounts/auth, multiplayer sync, custom word lists, backend/DB, sound effects, leaderboards, calendar integration, analytics/event instrumentation (no backend to receive events), dark theme (UXR mentions it as a "nice to have"; this build ships light theme only), "Join Game" / "Invite Others" / shareable or recurring game links (UXR Scenes 3, 5, 10) — single-player only, no game-joining mechanism beyond the post-win Share button's static text/result summary.
 
 ## Verification
 
