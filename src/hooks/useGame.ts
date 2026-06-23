@@ -150,3 +150,23 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 export function useGame() {
   return useReducer(gameReducer, initialGameState);
 }
+
+const VALID_STATUSES = new Set(['idle', 'setup', 'playing', 'won']);
+
+/**
+ * Minimal structural check on data read back from localStorage — guards
+ * against corrupted JSON or a stale/incompatible schema crashing the app on
+ * load, without needing a full schema validation library.
+ */
+export function isValidGameState(value: unknown): value is GameState {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<GameState>;
+  if (typeof candidate.status !== 'string' || !VALID_STATUSES.has(candidate.status)) return false;
+  if (typeof candidate.filledCount !== 'number') return false;
+  if (!Array.isArray(candidate.detectedWords)) return false;
+  if (candidate.card !== null) {
+    if (typeof candidate.card !== 'object') return false;
+    if (!Array.isArray(candidate.card.squares) || candidate.card.squares.length !== 5) return false;
+  }
+  return true;
+}
